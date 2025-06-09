@@ -213,3 +213,32 @@ func HandlerFollowing(s *State, cmd Command, user database.User) error {
 	}
 	return nil
 }
+
+func HandlerUnfollow(s *State, cmd Command, user database.User) error {
+	if len(cmd.Args) < 1 {
+		return fmt.Errorf("usage: unfollow <feed-url>")
+	}
+	url := cmd.Args[0]
+	ctx := context.Background()
+
+	// First check if the feed exists
+	feed, err := s.DB.GetFeedByUrl(ctx, url)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("feed not found")
+		}
+		return fmt.Errorf("error getting feed: %v", err)
+	}
+
+	// Delete the feed follow record
+	err = s.DB.DeleteFeedFollow(ctx, database.DeleteFeedFollowParams{
+		UserID: user.ID,
+		Url:    url,
+	})
+	if err != nil {
+		return fmt.Errorf("error unfollowing feed: %v", err)
+	}
+
+	fmt.Printf("User %s has unfollowed feed %s\n", user.Name, feed.Name)
+	return nil
+}
