@@ -134,3 +134,17 @@ func HandlerAddFeed(s *State, cmd Command) error {
 	fmt.Printf("Feed data: ID=%s, Name=%s, URL=%s, UserID=%s, CreatedAt=%s\n", feed.ID, feed.Name, feed.Url, currentUser.ID, feed.CreatedAt.Format(time.RFC3339))
 	return nil
 }
+
+func HandlerListFeeds(s *State, cmd Command) error {
+	feeds, err := s.DB.ListAllFeeds(context.Background())
+	if err != nil {
+		return fmt.Errorf("error listing feeds: %v", err)
+	}
+	fmt.Printf("Feeds:\n")
+	for _, feed := range feeds {
+		fmt.Printf("  Name: %s\n", feed.FeedName)
+		fmt.Printf("  URL: %s\n", feed.Url)
+		fmt.Printf("  Created by: %s\n\n", feed.UserName)
+	}
+	return nil
+}
