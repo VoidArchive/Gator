@@ -10,6 +10,19 @@ import (
 	"github.com/voidarchive/Gator/internal/database"
 )
 
+func MiddlewareLoggedIn(handler func(s *State, cmd Command, user database.User) error) func(*State, Command) error {
+	return func(s *State, cmd Command) error {
+		user, err := s.DB.GetUser(context.Background(), s.Cfg.CurrentUserName)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return fmt.Errorf("user %s doesn't exist", s.Cfg.CurrentUserName)
+			}
+			return fmt.Errorf("error getting user: %v", err)
+		}
+		return handler(s, cmd, user)
+	}
+}
+
 func HandlerLogin(s *State, cmd Command) error {
 	if len(cmd.Args) == 0 {
 		return fmt.Errorf("login requires a username")
@@ -55,8 +68,7 @@ func HandlerRegister(s *State, cmd Command) error {
 }
 
 func HandlerReset(s *State, cmd Command) error {
-	err := s.DB.DeleteAllUsers(context.Background())
-	if err != nil {
+	if err := s.DB.DeleteAllUsers(context.Background()); err != nil {
 		return fmt.Errorf("error resetting database :%v", err)
 	}
 
@@ -103,20 +115,12 @@ func HandlerAgg(s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerAddFeed(s *State, cmd Command) error {
+func HandlerAddFeed(s *State, cmd Command, user database.User) error {
 	if len(cmd.Args) < 2 {
 		return fmt.Errorf("addFeed requres name and url arguments")
 	}
 	name := cmd.Args[0]
 	url := cmd.Args[1]
-
-	currentUser, err := s.DB.GetUser(context.Background(), s.Cfg.CurrentUserName)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return fmt.Errorf("user not found")
-		}
-		return fmt.Errorf("error getting current user: %v", err)
-	}
 
 	feed, err := s.DB.CreateFeed(context.Background(), database.CreateFeedParams{
 		ID:        uuid.New(),
@@ -124,7 +128,7 @@ func HandlerAddFeed(s *State, cmd Command) error {
 		UpdatedAt: time.Now(),
 		Name:      name,
 		Url:       url,
-		UserID:    currentUser.ID,
+		UserID:    user.ID,
 	})
 
 	if err != nil {
@@ -136,7 +140,7 @@ func HandlerAddFeed(s *State, cmd Command) error {
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		UserID:    currentUser.ID,
+		UserID:    user.ID,
 		FeedID:    feed.ID,
 	})
 	if err != nil {
@@ -144,7 +148,7 @@ func HandlerAddFeed(s *State, cmd Command) error {
 	}
 
 	fmt.Printf("Feed added successfully!\n")
-	fmt.Printf("Feed data: ID=%s, Name=%s, URL=%s, UserID=%s, CreatedAt=%s\n", feed.ID, feed.Name, feed.Url, currentUser.ID, feed.CreatedAt.Format(time.RFC3339))
+	fmt.Printf("Feed data: ID=%s, Name=%s, URL=%s, UserID=%s, CreatedAt=%s\n", feed.ID, feed.Name, feed.Url, user.ID, feed.CreatedAt.Format(time.RFC3339))
 	return nil
 }
 
@@ -162,17 +166,13 @@ func HandlerListFeeds(s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerFollow(s *State, cmd Command) error {
+func HandlerFollow(s *State, cmd Command, user database.User) error {
 	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage: follow <feed-url")
 	}
 	url := cmd.Args[0]
 	ctx := context.Background()
 
-	currentUser, err := s.DB.GetUser(ctx, s.Cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("error getting current user: %v", err)
-	}
 	feed, err := s.DB.GetFeedByUrl(ctx, url)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -185,7 +185,7 @@ func HandlerFollow(s *State, cmd Command) error {
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		UserID:    currentUser.ID,
+		UserID:    user.ID,
 		FeedID:    feed.ID,
 	})
 	if err != nil {
@@ -196,18 +196,13 @@ func HandlerFollow(s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerFollowing(s *State, cmd Command) error {
+func HandlerFollowing(s *State, cmd Command, user database.User) error {
 	if len(cmd.Args) != 0 {
 		return fmt.Errorf("usage: following")
 	}
 	ctx := context.Background()
 
-	currentUser, err := s.DB.GetUser(ctx, s.Cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("error getting current user: %v", err)
-	}
-
-	follows, err := s.DB.GetFeedFollowsForUser(ctx, currentUser.ID)
+	follows, err := s.DB.GetFeedFollowsForUser(ctx, user.ID)
 	if err != nil {
 		return fmt.Errorf("error fetching follows: %v", err)
 	}
