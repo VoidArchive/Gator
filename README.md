@@ -15,8 +15,9 @@ A command-line RSS feed aggregator built in Go. Gator allows you to manage RSS f
 
 Before installing Gator, make sure you have:
 
-- **Go 1.20+** - [Download and install Go](https://golang.org/dl/)
+- **Go 1.24+** - [Download and install Go](https://golang.org/dl/)
 - **PostgreSQL** - [Download and install PostgreSQL](https://www.postgresql.org/download/)
+- **Goose** - Database migration tool (installation instructions below)
 
 ## Installation
 
@@ -40,54 +41,32 @@ Create a PostgreSQL database for Gator:
 CREATE DATABASE gator;
 ```
 
-### 2. Run Database Migrations
+### 2. Install Goose (Database Migration Tool)
 
-Since this project doesn't include an automated migration system, you'll need to manually create the database schema. Run these SQL commands in your PostgreSQL database:
+Install goose for running database migrations:
 
-```sql
--- Users table
-CREATE TABLE users (
-    id UUID PRIMARY KEY,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL,
-    name TEXT NOT NULL UNIQUE
-);
-
--- Feeds table
-CREATE TABLE feeds (
-    id UUID PRIMARY KEY,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL,
-    name TEXT NOT NULL,
-    url TEXT NOT NULL UNIQUE,
-    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    last_fetched_at TIMESTAMP
-);
-
--- Feed follows table
-CREATE TABLE feed_follows (
-    id UUID PRIMARY KEY,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL,
-    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    feed_id UUID NOT NULL REFERENCES feeds (id) ON DELETE CASCADE,
-    UNIQUE (user_id, feed_id)
-);
-
--- Posts table
-CREATE TABLE posts (
-    id UUID PRIMARY KEY,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL,
-    title TEXT NOT NULL,
-    url TEXT NOT NULL UNIQUE,
-    description TEXT,
-    published_at TIMESTAMP,
-    feed_id UUID NOT NULL REFERENCES feeds (id) ON DELETE CASCADE
-);
+```bash
+go install github.com/pressly/goose/v3/cmd/goose@latest
 ```
 
-### 3. Configuration File
+### 3. Run Database Migrations
+
+Navigate to the Gator project directory and run the migrations:
+
+```bash
+cd sql/schema
+goose postgres "postgres://username:password@localhost:5432/gator?sslmode=disable" up
+```
+
+Replace `username`, `password`, and connection details with your PostgreSQL credentials.
+
+This will create all the necessary tables:
+- `users` - User accounts
+- `feeds` - RSS feed information  
+- `feed_follows` - User feed subscriptions
+- `posts` - Scraped RSS posts
+
+### 4. Configuration File
 
 Create a configuration file at `~/.gatorconfig.json`:
 
